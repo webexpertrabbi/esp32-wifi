@@ -63,30 +63,30 @@ const char* adminDashboard = R"rawliteral(
 <title>Evil Twin</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:monospace;background:#1a1a1a;color:#00ff00;padding:10px;font-size:14px}
+body{font-family:monospace;background:#0f1419;color:#8ab4f8;padding:10px;font-size:14px}
 .container{max-width:800px;margin:0 auto}
-h1{color:#00ff00;font-size:18px;margin:10px 0;border-bottom:1px solid #00ff00;padding-bottom:5px}
-h2{color:#00ff00;font-size:16px;margin:15px 0 10px;border-bottom:1px solid #333;padding-bottom:5px}
-.btn{padding:8px 16px;border:1px solid #00ff00;background:#000;color:#00ff00;font-family:monospace;cursor:pointer;margin:5px 5px 5px 0;font-size:13px;transition:all 0.2s}
-.btn:hover:not(:disabled){background:#00ff00;color:#000}
+h1{color:#8ab4f8;font-size:18px;margin:10px 0;border-bottom:1px solid #5f6368;padding-bottom:5px}
+h2{color:#aecbfa;font-size:16px;margin:15px 0 10px;border-bottom:1px solid #3c4043;padding-bottom:5px}
+.btn{padding:8px 16px;border:1px solid #8ab4f8;background:#1e1e1e;color:#8ab4f8;font-family:monospace;cursor:pointer;margin:5px 5px 5px 0;font-size:13px;transition:all 0.2s}
+.btn:hover:not(:disabled){background:#8ab4f8;color:#0f1419}
 .btn:disabled{opacity:0.3;cursor:not-allowed}
-.btn-danger{border-color:#ff0000;color:#ff0000}
-.btn-danger:hover:not(:disabled){background:#ff0000;color:#000}
-input,select{width:100%;padding:8px;background:#000;border:1px solid #333;color:#00ff00;font-family:monospace;margin:5px 0;font-size:13px}
-input:focus{outline:none;border-color:#00ff00}
-.network-list{max-height:300px;overflow-y:auto;margin:10px 0;border:1px solid #333}
-.network-item{padding:10px;border-bottom:1px solid #333;cursor:pointer;transition:background 0.2s}
-.network-item:hover{background:#222}
-.network-item.selected{background:#003300;border-left:3px solid #00ff00}
-.status{padding:10px;margin:10px 0;border:1px solid #333;text-align:center;font-size:13px}
-.status.active{border-color:#00ff00;color:#00ff00}
-.status.twin{border-color:#ffff00;color:#ffff00;background:#222}
+.btn-danger{border-color:#f28b82;color:#f28b82}
+.btn-danger:hover:not(:disabled){background:#f28b82;color:#0f1419}
+input,select{width:100%;padding:8px;background:#202124;border:1px solid #5f6368;color:#e8eaed;font-family:monospace;margin:5px 0;font-size:13px}
+input:focus{outline:none;border-color:#8ab4f8}
+.network-list{max-height:300px;overflow-y:auto;margin:10px 0;border:1px solid #5f6368}
+.network-item{padding:10px;border-bottom:1px solid #3c4043;cursor:pointer;transition:background 0.2s}
+.network-item:hover{background:#1e1e1e}
+.network-item.selected{background:#1a3a52;border-left:3px solid #8ab4f8}
+.status{padding:10px;margin:10px 0;border:1px solid #5f6368;text-align:center;font-size:13px}
+.status.active{border-color:#81c995;color:#81c995}
+.status.twin{border-color:#fdd663;color:#fdd663;background:#1e1e1e}
 table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12px}
-table th{background:#222;color:#00ff00;padding:8px;text-align:left;border:1px solid #333}
-table td{padding:8px;border:1px solid #333}
-.info{background:#111;border:1px solid #333;padding:10px;margin:10px 0;font-size:12px}
-.info span{color:#ffff00}
-.loader{border:3px solid #333;border-top:3px solid #00ff00;border-radius:50%;width:30px;height:30px;animation:spin 1s linear infinite;margin:20px auto}
+table th{background:#1e1e1e;color:#aecbfa;padding:8px;text-align:left;border:1px solid #5f6368}
+table td{padding:8px;border:1px solid #3c4043;color:#e8eaed}
+.info{background:#1e1e1e;border:1px solid #5f6368;padding:10px;margin:10px 0;font-size:12px}
+.info span{color:#fdd663}
+.loader{border:3px solid #5f6368;border-top:3px solid #8ab4f8;border-radius:50%;width:30px;height:30px;animation:spin 1s linear infinite;margin:20px auto}
 @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
 @media(max-width:768px){
 body{font-size:12px}
@@ -510,11 +510,13 @@ document.querySelector('.back-btn').onclick=function(){
 void scanNetworks() {
     Serial.println("\n[SCAN] Scanning WiFi networks...");
     
+    // Temporarily switch to STA+AP mode for scanning
     WiFi.mode(WIFI_AP_STA);
-    delay(50);
+    delay(100);
     
-    int n = WiFi.scanNetworks(false, false, false, 300);
-    networkCount = min(n, 30);
+    // Scan networks (async=false, show_hidden=true, passive=false, max_ms=300)
+    int n = WiFi.scanNetworks(false, true, false, 500);
+    networkCount = (n > 0) ? min(n, 30) : 0;
     
     Serial.printf("[SCAN] Found %d networks\n", networkCount);
     
@@ -529,7 +531,17 @@ void scanNetworks() {
     }
     
     WiFi.scanDelete();
-    WiFi.mode(WIFI_AP);
+    delay(100);
+    
+    // Return to AP mode
+    if(isEvilTwinActive) {
+        // Keep Evil Twin running
+        WiFi.mode(WIFI_AP);
+    } else {
+        // Restore Admin AP
+        WiFi.mode(WIFI_AP);
+        WiFi.softAP(adminSSID.c_str(), adminPassword.c_str(), 1, hideSSID, 8);
+    }
 }
 
 // Evil Twin AP তৈরি (Optimized)
